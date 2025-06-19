@@ -31,6 +31,40 @@ const masterStatusList = [
   { short: "Returned to Sender", full: "Returned to Sender – Item has reached back to the sender." }
 ];
 
+const statusTimeOffsets = {
+  "Order Placed": 0,
+  "Order Confirmed": 0.5,
+  "Preparing for Shipment": 1.2,
+  "Label Created": 1.8,
+  "Awaiting Pickup": 3.5,
+  "Shipment Info Received by Carrier": 12.2,
+  "Picked Up by Courier": 15.8,
+  "Departed from Origin Facility": 22.1,
+  "Arrived at Carrier Facility": 28.7,
+  "In Transit to Next Facility": 35.5,
+  "Arrived at Sorting Center": 42.9,
+  "Sorted at Facility": 48.3,
+  "Departed from Sorting Facility": 55.6,
+  "In Transit - Delayed": 62.9,
+  "Arrived at Destination City": 72.4,
+  "Processing at Delivery Depot": 81.6,
+  "Arrived at Customs": 90.8,
+  "Under Customs Inspection": 96.5,
+  "Customs Cleared": 103.3,
+  "Held at Customs": 108.6,
+  "Out for Delivery": 116.9,
+  "Attempted Delivery – No One Available": 120.7,
+  "Attempted Delivery – Address Issue": 123.5,
+  "Reattempt Scheduled": 126.2,
+  "Delivered to Mailroom/Reception/Neighbor": 129.8,
+  "Delivered – Signed by Recipient": 134.1,
+  "Delivery Exception – Weather/Access Issue": 138.7,
+  "Return to Sender Initiated": 144.2,
+  "Parcel Lost in Transit": 150.0,
+  "Returned to Sender": 156.4
+};
+
+
 
 const openSheetURL = 'https://opensheet.elk.sh/1Q-4yKb-M-HoxAgh96AB9BhAxAj9kxHbRwDjVnshimQ0/Sheet1';
 
@@ -71,45 +105,50 @@ async function findOrder() {
         'Note to the Customer': customerNote
       } = matchedRow;
 
-      const customerHtml = `
-        <div class="guarantee-box">
-          <i class="fa-solid fa-shield-halved fa-beat-fade" style="color:#c52233; margin-right: 8px;"></i>
-          <strong>Get a $50 Refund</strong> if your delivery is late. Guaranteed by the Estimated Date!
-        </div>
+      const customerHtml = 
+        `<div>
+          <div class="guarantee-box">
+            <i class="fa-solid fa-shield-halved fa-beat-fade" style="color:#c52233; margin-right: 8px;"></i>
+            <strong>Get a $50 Refund</strong> if your delivery is late. Guaranteed by the Estimated Date!
+          </div>
 
-        <div class="customer-details">
-          <h3>Order ${orderID} — Placed on ${orderDate}</h3>
-          <ul>
-            <li><strong>Customer Name:</strong> ${customerName}</li>
-            <li><strong>Shipping Address:</strong> ${address}</li>
-            <li><strong>Fulfilled Date:</strong> ${fulfilledDate || '—'}</li>
-            <li><strong>Shipping Type:</strong> ${shippingType || '—'}</li>
-            <li><strong>Estimated Delivery:</strong> ${estimatedDate || '<em>Your Order Estimated Delivery Date will be shared soon.</em>'}</li>
-          </ul>
-        </div>
-      `;
+          <div class="customer-details">
+            <h3>Order ${orderID} — Placed on ${orderDate}</h3>
+            <ul>
+              <li><strong>Customer Name:</strong> ${customerName}</li>
+              <li><strong>Shipping Address:</strong> ${address}</li>
+              <li><strong>Fulfilled Date:</strong> ${fulfilledDate || '—'}</li>
+              <li><strong>Shipping Type:</strong> ${shippingType || '—'}</li>
+              <li><strong>Estimated Delivery:</strong> ${estimatedDate || '<em>Your Order Estimated Delivery Date will be shared soon.</em>'}</li>
+            </ul>
+          </div>
+        </div>`
+        ;
 
-      const timelineHtml = buildTimeline(currentStatus);
+const timelineHtml = buildTimeline(currentStatus, orderDate);
 
-      const noteHtml = `
-        <div class="note-box">
-          <h3>Note to Customer</h3>
+      const noteHtml = 
+        `<div class="note-box">
+          <h3>Note</h3>
           <p>${customerNote || '—'}</p>
-        </div>
-      `;
+        </div>`
+      ;
 
       outputDiv.innerHTML = customerHtml + timelineHtml + noteHtml;
     } else {
       outputDiv.innerHTML = '<div class="no-result">No matching record found.</div>';
     }
-
+  
   } catch (error) {
     outputDiv.innerHTML = `<div class="no-result">Error fetching data: ${error.message}</div>`;
   }
 }
 
-function buildTimeline(currentStatus) {
+function buildTimeline(currentStatus, orderPlacedTime) {
   const currentIndex = masterStatusList.findIndex(status => status.short === currentStatus);
+  if (currentIndex === -1) return '';
+
+  const orderDateObj = new Date(orderPlacedTime);
 
   let timelineHtml = `
     <div class="order-status">
@@ -117,24 +156,31 @@ function buildTimeline(currentStatus) {
       <ul class="timeline-list">
   `;
 
-
-
   masterStatusList.forEach((status, index) => {
-    if (index > currentIndex) return; // Skip future statuses
+    if (index > currentIndex) return;
 
     const isCurrent = index === currentIndex;
     const liClass = isCurrent ? 'current' : 'done';
     const iconClass = isCurrent ? 'fa-circle-dot' : 'fa-circle-check';
     const iconColor = isCurrent ? 'orange' : 'green';
 
+    const offsetHours = statusTimeOffsets[status.short] || 0;
+    const estimatedDate = new Date(orderDateObj.getTime() + offsetHours * 60 * 60 * 1000);
+    const formattedTime = estimatedDate.toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
     timelineHtml += `
       <li class="${liClass}">
         <div class="timeline-icon"><i class="fa-solid ${iconClass}" style="color:${iconColor};"></i></div>
-        <div class="timeline-text">${status.full}</div>
+        <div class="timeline-text">
+          <strong>${status.full}</strong><br>
+          <small style="color: #aaa;">${formattedTime}</small>
+        </div>
       </li>
     `;
   });
-
 
   timelineHtml += `
       </ul>
